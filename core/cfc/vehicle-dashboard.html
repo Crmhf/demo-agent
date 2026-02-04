@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>新能源智慧物流监控平台</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Leaflet Map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        heading: ['Space Grotesk', 'sans-serif'],
+                        body: ['DM Sans', 'sans-serif'],
+                    },
+                    colors: {
+                        'neon-cyan': '#00FFFF',
+                        'neon-purple': '#7B61FF',
+                        'neon-green': '#00FF88',
+                        'neon-orange': '#FF9500',
+                        'neon-red': '#FF3366',
+                        'deep-bg': '#0A0E27',
+                        'panel-bg': 'rgba(15, 23, 42, 0.85)',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(135deg, #050510 0%, #0A0E27 50%, #0D1428 100%);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* 玻璃态效果 */
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        }
+
+        .glass-card {
+            background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            transition: all 0.3s ease;
+        }
+
+        .glass-card:hover {
+            background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.04) 100%);
+            border-color: rgba(0, 255, 255, 0.2);
+            transform: translateY(-2px);
+            box-shadow: 0 12px 40px rgba(0, 255, 255, 0.1);
+        }
+
+        /* 霓虹发光效果 */
+        .neon-glow {
+            text-shadow: 0 0 10px rgba(0, 255, 255, 0.5),
+                         0 0 20px rgba(0, 255, 255, 0.3),
+                         0 0 30px rgba(0, 255, 255, 0.2);
+        }
+
+        .neon-border {
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.3),
+                        inset 0 0 15px rgba(0, 255, 255, 0.1);
+        }
+
+        /* 扫描线效果 */
+        .scan-line {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, rgba(0, 255, 255, 0.8), transparent);
+            animation: scan 4s linear infinite;
+            pointer-events: none;
+        }
+
+        @keyframes scan {
+            0% { transform: translateY(0); opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { transform: translateY(100vh); opacity: 0; }
+        }
+
+        /* 脉冲动画 */
+        .pulse-ring {
+            animation: pulse-ring 2s ease-out infinite;
+        }
+
+        @keyframes pulse-ring {
+            0% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(2); opacity: 0; }
+        }
+
+        /* 地图样式 */
+        #map {
+            width: 100%;
+            height: 100%;
+            border-radius: 12px;
+        }
+
+        .leaflet-container {
+            background: #0A0E27 !important;
+        }
+
+        /* 自定义滚动条 */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(0, 255, 255, 0.3);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 255, 255, 0.5);
+        }
+
+        /* 状态指示器 */
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            position: relative;
+        }
+
+        .status-online {
+            background: #00FF88;
+            box-shadow: 0 0 8px #00FF88;
+        }
+
+        .status-charging {
+            background: #FF9500;
+            box-shadow: 0 0 8px #FF9500;
+        }
+
+        .status-offline {
+            background: #FF3366;
+            box-shadow: 0 0 8px #FF3366;
+        }
+
+        /* 车辆标记样式 */
+        .vehicle-marker {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: 2px solid #00FFFF;
+            background: rgba(0, 255, 255, 0.2);
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .vehicle-marker:hover {
+            transform: scale(1.3);
+            background: rgba(0, 255, 255, 0.4);
+        }
+
+        .vehicle-marker i {
+            width: 12px;
+            height: 12px;
+            color: #00FFFF;
+        }
+
+        /* 数据流动画 */
+        .data-flow {
+            background: linear-gradient(90deg, transparent, rgba(0, 255, 255, 0.2), transparent);
+            animation: flow 2s linear infinite;
+        }
+
+        @keyframes flow {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        /* 网格背景 */
+        .grid-bg {
+            background-image:
+                linear-gradient(rgba(0, 255, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 255, 255, 0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+        }
+    </style>
+</head>
+<body class="font-body text-gray-200">
+    <!-- 扫描线 -->
+    <div class="scan-line"></div>
+
+    <!-- 网格背景 -->
+    <div class="fixed inset-0 grid-bg pointer-events-none z-0"></div>
+
+    <!-- 顶部导航栏 -->
+    <header class="fixed top-0 left-0 right-0 z-50 glass-panel border-b border-cyan-500/20">
+        <div class="flex items-center justify-between px-6 py-3">
+            <div class="flex items-center gap-4">
+                <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-neon-cyan to-neon-purple flex items-center justify-center">
+                    <i data-lucide="zap" class="w-6 h-6 text-white"></i>
+                </div>
+                <div>
+                    <h1 class="font-heading text-xl font-bold text-white neon-glow">EV Fleet Monitor</h1>
+                    <p class="text-xs text-gray-400">新能源智慧物流监控平台</p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-8">
+                <div class="flex items-center gap-2">
+                    <span class="status-dot status-online pulse-ring"></span>
+                    <span class="text-sm text-gray-300">系统正常运行</span>
+                </div>
+                <div class="text-right">
+                    <div id="clock" class="font-heading text-lg font-semibold text-neon-cyan">00:00:00</div>
+                    <div id="date" class="text-xs text-gray-400">2024-01-01</div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主内容区 -->
+    <main class="pt-20 pb-4 px-4 h-screen">
+        <div class="grid grid-cols-12 gap-4 h-full">
+
+            <!-- 左侧统计面板 -->
+            <aside class="col-span-3 flex flex-col gap-4 h-full overflow-hidden">
+                <!-- 总览卡片 -->
+                <div class="glass-panel rounded-xl p-4">
+                    <h3 class="font-heading text-sm text-gray-400 mb-3 flex items-center gap-2">
+                        <i data-lucide="bar-chart-3" class="w-4 h-4"></i>
+                        车辆总览
+                    </h3>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="glass-card rounded-lg p-3 text-center">
+                            <div class="text-2xl font-heading font-bold text-neon-cyan" id="total-vehicles">200</div>
+                            <div class="text-xs text-gray-400 mt-1">车辆总数</div>
+                        </div>
+                        <div class="glass-card rounded-lg p-3 text-center">
+                            <div class="text-2xl font-heading font-bold text-neon-green" id="online-vehicles">186</div>
+                            <div class="text-xs text-gray-400 mt-1">在线运行</div>
+                        </div>
+                        <div class="glass-card rounded-lg p-3 text-center">
+                            <div class="text-2xl font-heading font-bold text-neon-orange" id="charging-vehicles">12</div>
+                            <div class="text-xs text-gray-400 mt-1">充电中</div>
+                        </div>
+                        <div class="glass-card rounded-lg p-3 text-center">
+                            <div class="text-2xl font-heading font-bold text-neon-red" id="offline-vehicles">2</div>
+                            <div class="text-xs text-gray-400 mt-1">离线告警</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 电池状态分布 -->
+                <div class="glass-panel rounded-xl p-4 flex-1">
+                    <h3 class="font-heading text-sm text-gray-400 mb-3 flex items-center gap-2">
+                        <i data-lucide="battery-charging" class="w-4 h-4"></i>
+                        电池状态分布
+                    </h3>
+                    <div class="relative h-48">
+                        <canvas id="batteryChart"></canvas>
+                    </div>
+                    <div class="mt-4 space-y-2">
+                        <div class="flex items-center justify-between text-xs">
+                            <span class="flex items-center gap-2">
+                                <span class="w-2 h-2 rounded-full bg-neon-green"></span>
+                                高电量 (>80%)
+                            </span>
+                            <span class="text-neon-green font-semibold">142辆</span>
+                        </div>
+                        <div class="flex items-center justify-between text-xs">
+                            <span class="flex items-center gap-2">
+                                <span class="w-2 h-2 rounded-full bg-neon-cyan"></span>
+                                正常 (30-80%)
+                            </span>
+                            <span class="text-neon-cyan font-semibold">44辆</span>
+                        </div>
+                        <div class="flex items-center justify-between text-xs">
+                            <span class="flex items-center gap-2">
+                                <span class="w-2 h-2 rounded-full bg-neon-orange"></span>
+                                低电量 (<30%)
+                            </span>
+                            <span class="text-neon-orange font-semibold">12辆</span>
+                        </div>
+                        <div class="flex items-center justify-between text-xs">
+                            <span class="flex items-center gap-2">
+                                <span class="w-2 h-2 rounded-full bg-neon-purple"></span>
+                                充电中
+                            </span>
+                            <span class="text-neon-purple font-semibold">12辆</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 今日运营数据 -->
+                <div class="glass-panel rounded-xl p-4">
+                    <h3 class="font-heading text-sm text-gray-400 mb-3 flex items-center gap-2">
+                        <i data-lucide="trending-up" class="w-4 h-4"></i>
+                        今日运营数据
+                    </h3>
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-gray-400">总里程</span>
+                            <span class="font-heading text-neon-cyan">12,847 <span class="text-xs text-gray-500">km</span></span>
+                        </div>
+                        <div class="w-full h-1 bg-gray-700 rounded-full overflow-hidden">
+                            <div class="h-full w-3/4 bg-gradient-to-r from-neon-cyan to-neon-purple rounded-full"></div>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-gray-400">总耗电量</span>
+                            <span class="font-heading text-neon-green">2,456 <span class="text-xs text-gray-500">kWh</span></span>
+                        </div>
+                        <div class="w-full h-1 bg-gray-700 rounded-full overflow-hidden">
+                            <div class="h-full w-2/3 bg-gradient-to-r from-neon-green to-neon-cyan rounded-full"></div>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-gray-400">平均车速</span>
+                            <span class="font-heading text-neon-purple">45.2 <span class="text-xs text-gray-500">km/h</span></span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-gray-400">碳减排</span>
+                            <span class="font-heading text-neon-green">8.2 <span class="text-xs text-gray-500">吨</span></span>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- 中间地图区域 -->
+            <section class="col-span-6 flex flex-col gap-4 h-full">
+                <div class="glass-panel rounded-xl p-1 flex-1 relative overflow-hidden">
+                    <!-- 地图控制栏 -->
+                    <div class="absolute top-4 left-4 right-4 z-10 flex items-center justify-between">
+                        <div class="glass-panel rounded-lg px-4 py-2 flex items-center gap-4">
+                            <div class="flex items-center gap-2">
+                                <i data-lucide="map-pin" class="w-4 h-4 text-neon-cyan"></i>
+                                <span class="text-sm">上海市 · 浦东新区</span>
+                            </div>
+                            <div class="w-px h-4 bg-gray-600"></div>
+                            <div class="flex items-center gap-2">
+                                <i data-lucide="navigation" class="w-4 h-4 text-neon-green"></i>
+                                <span class="text-sm">实时追踪中</span>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-2">
+                            <button onclick="filterVehicles('all')" class="glass-card px-3 py-1.5 rounded-lg text-xs hover:bg-neon-cyan/20 transition-colors active-filter" data-filter="all">
+                                全部
+                            </button>
+                            <button onclick="filterVehicles('online')" class="glass-card px-3 py-1.5 rounded-lg text-xs hover:bg-neon-green/20 transition-colors" data-filter="online">
+                                在线
+                            </button>
+                            <button onclick="filterVehicles('charging')" class="glass-card px-3 py-1.5 rounded-lg text-xs hover:bg-neon-orange/20 transition-colors" data-filter="charging">
+                                充电
+                            </button>
+                            <button onclick="filterVehicles('alert')" class="glass-card px-3 py-1.5 rounded-lg text-xs hover:bg-neon-red/20 transition-colors" data-filter="alert">
+                                告警
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 地图容器 -->
+                    <div id="map" class="w-full h-full"></div>
+
+                    <!-- 地图图例 -->
+                    <div class="absolute bottom-4 left-4 glass-panel rounded-lg p-3 z-10">
+                        <div class="text-xs text-gray-400 mb-2">图例</div>
+                        <div class="space-y-1.5">
+                            <div class="flex items-center gap-2">
+                                <span class="w-3 h-3 rounded-full bg-neon-cyan shadow-[0_0_8px_#00FFFF]"></span>
+                                <span class="text-xs">行驶中</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="w-3 h-3 rounded-full bg-neon-orange shadow-[0_0_8px_#FF9500]"></span>
+                                <span class="text-xs">充电中</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="w-3 h-3 rounded-full bg-neon-red shadow-[0_0_8px_#FF3366]"></span>
+                                <span class="text-xs">离线/告警</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 底部趋势图 -->
+                <div class="glass-panel rounded-xl p-4 h-48">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="font-heading text-sm text-gray-400 flex items-center gap-2">
+                            <i data-lucide="activity" class="w-4 h-4"></i>
+                            实时运营趋势
+                        </h3>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs text-gray-500">最后更新:</span>
+                            <span id="last-update" class="text-xs text-neon-cyan">刚刚</span>
+                        </div>
+                    </div>
+                    <div class="relative h-32">
+                        <canvas id="trendChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 右侧车辆列表 -->
+            <aside class="col-span-3 flex flex-col gap-4 h-full overflow-hidden">
+                <!-- 告警通知 -->
+                <div class="glass-panel rounded-xl p-4">
+                    <h3 class="font-heading text-sm text-gray-400 mb-3 flex items-center gap-2">
+                        <i data-lucide="bell" class="w-4 h-4"></i>
+                        实时告警
+                        <span class="ml-auto px-2 py-0.5 bg-neon-red/20 text-neon-red text-xs rounded-full">3</span>
+                    </h3>
+                    <div class="space-y-2 max-h-32 overflow-y-auto">
+                        <div class="glass-card rounded-lg p-2 flex items-center gap-2 border-l-2 border-neon-red">
+                            <i data-lucide="alert-triangle" class="w-4 h-4 text-neon-red"></i>
+                            <div class="flex-1 min-w-0">
+                                <div class="text-xs font-medium truncate">沪A·D12345 电量过低</div>
+                                <div class="text-xs text-gray-500">剩余 8% · 2分钟前</div>
+                            </div>
+                        </div>
+                        <div class="glass-card rounded-lg p-2 flex items-center gap-2 border-l-2 border-neon-orange">
+                            <i data-lucide="battery-warning" class="w-4 h-4 text-neon-orange"></i>
+                            <div class="flex-1 min-w-0">
+                                <div class="text-xs font-medium truncate">沪A·D67890 充电完成</div>
+                                <div class="text-xs text-gray-500">已充满 · 5分钟前</div>
+                            </div>
+                        </div>
+                        <div class="glass-card rounded-lg p-2 flex items-center gap-2 border-l-2 border-neon-red">
+                            <i data-lucide="wifi-off" class="w-4 h-4 text-neon-red"></i>
+                            <div class="flex-1 min-w-0">
+                                <div class="text-xs font-medium truncate">沪A·D11111 信号丢失</div>
+                                <div class="text-xs text-gray-500">离线 15分钟 · 10分钟前</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 车辆列表 -->
+                <div class="glass-panel rounded-xl p-4 flex-1 flex flex-col overflow-hidden">
+                    <h3 class="font-heading text-sm text-gray-400 mb-3 flex items-center gap-2">
+                        <i data-lucide="truck" class="w-4 h-4"></i>
+                        车辆实时监控
+                    </h3>
+                    <div class="flex items-center gap-2 mb-3">
+                        <div class="relative flex-1">
+                            <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"></i>
+                            <input type="text" id="search-input" placeholder="搜索车牌号..." class="w-full bg-gray-800/50 border border-gray-700 rounded-lg pl-9 pr-3 py-2 text-xs focus:outline-none focus:border-neon-cyan transition-colors">
+                        </div>
+                    </div>
+                    <div id="vehicle-list" class="flex-1 overflow-y-auto space-y-2">
+                        <!-- 车辆列表项将由 JS 生成 -->
+                    </div>
+                </div>
+
+                <!-- 区域分布 -->
+                <div class="glass-panel rounded-xl p-4">
+                    <h3 class="font-heading text-sm text-gray-400 mb-3 flex items-center gap-2">
+                        <i data-lucide="pie-chart" class="w-4 h-4"></i>
+                        区域分布
+                    </h3>
+                    <div class="space-y-2">
+                        <div class="flex items-center justify-between text-xs">
+                            <span class="text-gray-400">浦东新区</span>
+                            <div class="flex items-center gap-2">
+                                <div class="w-20 h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                                    <div class="h-full w-3/5 bg-neon-cyan rounded-full"></div>
+                                </div>
+                                <span class="text-neon-cyan w-8 text-right">68</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between text-xs">
+                            <span class="text-gray-400">闵行区</span>
+                            <div class="flex items-center gap-2">
+                                <div class="w-20 h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                                    <div class="h-full w-1/4 bg-neon-purple rounded-full"></div>
+                                </div>
+                                <span class="text-neon-purple w-8 text-right">42</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between text-xs">
+                            <span class="text-gray-400">松江区</span>
+                            <div class="flex items-center gap-2">
+                                <div class="w-20 h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                                    <div class="h-full w-1/5 bg-neon-green rounded-full"></div>
+                                </div>
+                                <span class="text-neon-green w-8 text-right">35</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between text-xs">
+                            <span class="text-gray-400">其他区域</span>
+                            <div class="flex items-center gap-2">
+                                <div class="w-20 h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                                    <div class="h-full w-1/6 bg-gray-500 rounded-full"></div>
+                                </div>
+                                <span class="text-gray-400 w-8 text-right">55</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </main>
+
+    <script>
+        // 初始化 Lucide 图标
+        lucide.createIcons();
+
+        // ==================== 时钟更新 ====================
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('clock').textContent = now.toLocaleTimeString('zh-CN', { hour12: false });
+            document.getElementById('date').textContent = now.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // ==================== 生成模拟车辆数据 ====================
+        const vehicleTypes = ['厢式货车', '冷链车', '平板车', '集装箱'];
+        const districts = ['浦东新区', '闵行区', '松江区', '嘉定区', '宝山区', '青浦区'];
+        const drivers = ['张师傅', '李师傅', '王师傅', '刘师傅', '陈师傅', '杨师傅', '赵师傅', '黄师傅'];
+
+        function generateVehicles(count) {
+            const vehicles = [];
+            const shanghaiBounds = {
+                lat: { min: 30.9, max: 31.5 },
+                lng: { min: 121.0, max: 121.9 }
+            };
+
+            for (let i = 0; i < count; i++) {
+                const battery = Math.random() > 0.1 ? Math.floor(Math.random() * 70) + 30 : Math.floor(Math.random() * 20) + 5;
+                const status = battery < 15 ? 'charging' : (Math.random() > 0.98 ? 'offline' : 'online');
+
+                vehicles.push({
+                    id: `EV${String(i + 1).padStart(4, '0')}`,
+                    plate: `沪A·D${Math.floor(Math.random() * 90000) + 10000}`,
+                    type: vehicleTypes[Math.floor(Math.random() * vehicleTypes.length)],
+                    driver: drivers[Math.floor(Math.random() * drivers.length)],
+                    battery: battery,
+                    status: status,
+                    speed: status === 'online' ? Math.floor(Math.random() * 80) : 0,
+                    mileage: Math.floor(Math.random() * 50000) + 10000,
+                    lat: shanghaiBounds.lat.min + Math.random() * (shanghaiBounds.lat.max - shanghaiBounds.lat.min),
+                    lng: shanghaiBounds.lng.min + Math.random() * (shanghaiBounds.lng.max - shanghaiBounds.lng.min),
+                    district: districts[Math.floor(Math.random() * districts.length)],
+                    temperature: Math.floor(Math.random() * 15) + 20,
+                    lastUpdate: new Date().toLocaleTimeString('zh-CN')
+                });
+            }
+            return vehicles;
+        }
+
+        const vehicles = generateVehicles(200);
+
+        // ==================== 初始化地图 ====================
+        const map = L.map('map', {
+            zoomControl: false,
+            attributionControl: false
+        }).setView([31.2304, 121.4737], 11);
+
+        // 添加暗色地图图层
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            maxZoom: 19,
+            opacity: 0.8
+        }).addTo(map);
+
+        // 自定义车辆图标
+        function createVehicleIcon(status) {
+            const colors = {
+                online: '#00FFFF',
+                charging: '#FF9500',
+                offline: '#FF3366'
+            };
+            const color = colors[status] || colors.online;
+
+            return L.divIcon({
+                className: 'custom-vehicle-marker',
+                html: `
+                    <div style="
+                        width: 28px;
+                        height: 28px;
+                        border-radius: 50%;
+                        border: 2px solid ${color};
+                        background: ${color}20;
+                        box-shadow: 0 0 15px ${color}80, inset 0 0 10px ${color}40;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        cursor: pointer;
+                        transition: all 0.3s ease;
+                    " onmouseover="this.style.transform='scale(1.3)'" onmouseout="this.style.transform='scale(1)'">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/>
+                            <circle cx="7" cy="17" r="2"/>
+                            <circle cx="17" cy="17" r="2"/>
+                        </svg>
+                    </div>
+                `,
+                iconSize: [28, 28],
+                iconAnchor: [14, 14]
+            });
+        }
+
+        // 添加车辆标记
+        const markers = {};
+        vehicles.forEach(vehicle => {
+            const marker = L.marker([vehicle.lat, vehicle.lng], {
+                icon: createVehicleIcon(vehicle.status)
+            }).addTo(map);
+
+            marker.bindPopup(`
+                <div style="background: #0A0E27; color: #fff; padding: 10px; border-radius: 8px; min-width: 200px; font-family: 'DM Sans', sans-serif;">
+                    <div style="font-weight: 600; font-size: 14px; margin-bottom: 8px; color: #00FFFF;">${vehicle.plate}</div>
+                    <div style="font-size: 12px; color: #94A3B8; margin-bottom: 4px;">司机: ${vehicle.driver}</div>
+                    <div style="font-size: 12px; color: #94A3B8; margin-bottom: 4px;">类型: ${vehicle.type}</div>
+                    <div style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
+                        <span style="font-size: 12px;">电量:</span>
+                        <div style="flex: 1; height: 6px; background: #1E293B; border-radius: 3px; overflow: hidden;">
+                            <div style="width: ${vehicle.battery}%; height: 100%; background: ${vehicle.battery > 30 ? '#00FF88' : '#FF9500'}; border-radius: 3px;"></div>
+                        </div>
+                        <span style="font-size: 12px; color: ${vehicle.battery > 30 ? '#00FF88' : '#FF9500'};">${vehicle.battery}%</span>
+                    </div>
+                    <div style="font-size: 12px; color: #94A3B8; margin-top: 8px;">速度: ${vehicle.speed} km/h</div>
+                    <div style="font-size: 12px; color: #94A3B8;">位置: ${vehicle.district}</div>
+                </div>
+            `);
+
+            markers[vehicle.id] = marker;
+        });
+
+        // ==================== 渲染车辆列表 ====================
+        function renderVehicleList(filter = 'all') {
+            const listContainer = document.getElementById('vehicle-list');
+            const searchTerm = document.getElementById('search-input').value.toLowerCase();
+
+            let filteredVehicles = vehicles;
+
+            if (filter !== 'all') {
+                filteredVehicles = vehicles.filter(v => v.status === filter);
+            }
+
+            if (searchTerm) {
+                filteredVehicles = filteredVehicles.filter(v =>
+                    v.plate.toLowerCase().includes(searchTerm) ||
+                    v.driver.includes(searchTerm)
+                );
+            }
+
+            listContainer.innerHTML = filteredVehicles.slice(0, 20).map(vehicle => {
+                const statusColors = {
+                    online: 'bg-neon-green',
+                    charging: 'bg-neon-orange',
+                    offline: 'bg-neon-red'
+                };
+
+                return `
+                    <div class="glass-card rounded-lg p-3 cursor-pointer hover:bg-white/5 transition-all" onclick="focusVehicle('${vehicle.id}')">
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="status-dot ${statusColors[vehicle.status]}"></span>
+                                <span class="font-heading text-sm font-medium text-white">${vehicle.plate}</span>
+                            </div>
+                            <span class="text-xs text-gray-400">${vehicle.speed} km/h</span>
+                        </div>
+                        <div class="flex items-center justify-between text-xs text-gray-400">
+                            <span>${vehicle.driver} · ${vehicle.type}</span>
+                            <span class="${vehicle.battery < 30 ? 'text-neon-orange' : 'text-neon-green'}">${vehicle.battery}%</span>
+                        </div>
+                        <div class="mt-2 h-1 bg-gray-700 rounded-full overflow-hidden">
+                            <div class="h-full rounded-full transition-all duration-500 ${vehicle.battery < 30 ? 'bg-neon-orange' : 'bg-neon-green'}" style="width: ${vehicle.battery}%"></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // 聚焦车辆
+        function focusVehicle(vehicleId) {
+            const vehicle = vehicles.find(v => v.id === vehicleId);
+            if (vehicle && markers[vehicleId]) {
+                map.setView([vehicle.lat, vehicle.lng], 15);
+                markers[vehicleId].openPopup();
+            }
+        }
+
+        // 过滤车辆
+        function filterVehicles(type) {
+            document.querySelectorAll('[data-filter]').forEach(btn => {
+                btn.classList.remove('bg-neon-cyan/20', 'text-neon-cyan');
+            });
+            document.querySelector(`[data-filter="${type}"]`).classList.add('bg-neon-cyan/20', 'text-neon-cyan');
+            renderVehicleList(type);
+        }
+
+        // 搜索功能
+        document.getElementById('search-input').addEventListener('input', () => {
+            renderVehicleList();
+        });
+
+        renderVehicleList();
+
+        // ==================== 电池状态图表 ====================
+        const batteryCtx = document.getElementById('batteryChart').getContext('2d');
+        new Chart(batteryCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['高电量', '正常', '低电量', '充电中'],
+                datasets: [{
+                    data: [142, 44, 2, 12],
+                    backgroundColor: ['#00FF88', '#00FFFF', '#FF3366', '#FF9500'],
+                    borderWidth: 0,
+                    hoverOffset: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '70%',
+                plugins: {
+                    legend: { display: false }
+                }
+            }
+        });
+
+        // ==================== 实时趋势图表 ====================
+        const trendCtx = document.getElementById('trendChart').getContext('2d');
+
+        // 生成初始数据
+        const hours = Array.from({ length: 12 }, (_, i) => `${i * 2}:00`);
+        const onlineData = [120, 135, 150, 165, 180, 175, 170, 182, 186, 184, 188, 186];
+        const mileageData = [800, 1200, 1800, 2400, 3200, 4100, 5200, 6400, 7800, 9200, 10800, 12847];
+
+        const trendChart = new Chart(trendCtx, {
+            type: 'line',
+            data: {
+                labels: hours,
+                datasets: [
+                    {
+                        label: '在线车辆',
+                        data: onlineData,
+                        borderColor: '#00FFFF',
+                        backgroundColor: 'rgba(0, 255, 255, 0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 3,
+                        pointBackgroundColor: '#00FFFF',
+                        pointBorderColor: '#0A0E27',
+                        pointBorderWidth: 2
+                    },
+                    {
+                        label: '累计里程(km)',
+                        data: mileageData.map(v => v / 100),
+                        borderColor: '#7B61FF',
+                        backgroundColor: 'transparent',
+                        borderDash: [5, 5],
+                        tension: 0.4,
+                        pointRadius: 0,
+                        yAxisID: 'y1'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        labels: {
+                            color: '#94A3B8',
+                            font: { size: 10 },
+                            usePointStyle: true,
+                            boxWidth: 8
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.05)'
+                        },
+                        ticks: {
+                            color: '#64748B',
+                            font: { size: 10 }
+                        }
+                    },
+                    y: {
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.05)'
+                        },
+                        ticks: {
+                            color: '#64748B',
+                            font: { size: 10 }
+                        },
+                        min: 0,
+                        max: 250
+                    },
+                    y1: {
+                        position: 'right',
+                        grid: { display: false },
+                        ticks: { display: false }
+                    }
+                }
+            }
+        });
+
+        // ==================== 模拟实时数据更新 ====================
+        function updateRealTimeData() {
+            // 随机更新一些车辆数据
+            vehicles.forEach(vehicle => {
+                if (vehicle.status === 'online' && Math.random() > 0.7) {
+                    vehicle.speed = Math.max(0, vehicle.speed + Math.floor(Math.random() * 10) - 5);
+                    vehicle.battery = Math.max(5, vehicle.battery - 0.1);
+
+                    // 模拟微小移动
+                    vehicle.lat += (Math.random() - 0.5) * 0.001;
+                    vehicle.lng += (Math.random() - 0.5) * 0.001;
+
+                    // 更新标记位置
+                    if (markers[vehicle.id]) {
+                        markers[vehicle.id].setLatLng([vehicle.lat, vehicle.lng]);
+                    }
+                }
+            });
+
+            // 更新统计数字
+            const online = vehicles.filter(v => v.status === 'online').length;
+            const charging = vehicles.filter(v => v.status === 'charging').length;
+            const offline = vehicles.filter(v => v.status === 'offline').length;
+
+            document.getElementById('online-vehicles').textContent = online;
+            document.getElementById('charging-vehicles').textContent = charging;
+            document.getElementById('offline-vehicles').textContent = offline;
+
+            // 更新最后更新时间
+            document.getElementById('last-update').textContent = new Date().toLocaleTimeString('zh-CN');
+
+            // 刷新列表
+            renderVehicleList();
+        }
+
+        // 每3秒更新一次数据
+        setInterval(updateRealTimeData, 3000);
+
+        // ==================== 添加地图缩放控件 ====================
+        L.control.zoom({
+            position: 'bottomright'
+        }).addTo(map);
+    </script>
+</body>
+</html>
