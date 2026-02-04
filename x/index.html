@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>X Content Hub - 实时热点聚合</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #000000;
+            --bg-secondary: #16181c;
+            --bg-tertiary: #202327;
+            --text-primary: #e7e9ea;
+            --text-secondary: #71767b;
+            --border-color: #2f3336;
+            --accent: #1d9bf0;
+            --accent-hover: #1a8cd8;
+            --tech: #1d9bf0;
+            --finance: #00ba7c;
+            --news: #f4212e;
+            --entertainment: #ff6b9d;
+            --sports: #ffad1f;
+            --lifestyle: #7856ff;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.5;
+        }
+
+        /* Header */
+        header {
+            position: sticky;
+            top: 0;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border-color);
+            z-index: 100;
+        }
+
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        .logo svg {
+            width: 32px;
+            height: 32px;
+            fill: var(--text-primary);
+        }
+
+        .header-info {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .update-time {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .refresh-btn {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 9999px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .refresh-btn:hover {
+            background: var(--accent-hover);
+        }
+
+        .refresh-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .refresh-btn.spinning svg {
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Layout */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: 240px 1fr 300px;
+            gap: 20px;
+        }
+
+        @media (max-width: 1024px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+            .sidebar-left, .sidebar-right {
+                display: none;
+            }
+        }
+
+        /* Sidebar Navigation */
+        .sidebar-left {
+            position: sticky;
+            top: 80px;
+            height: fit-content;
+        }
+
+        .nav-section {
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        .nav-title {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 4px;
+        }
+
+        .nav-item:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .nav-item.active {
+            background: var(--bg-tertiary);
+            font-weight: 600;
+        }
+
+        .nav-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+
+        .nav-count {
+            margin-left: auto;
+            font-size: 12px;
+            color: var(--text-secondary);
+            background: var(--bg-tertiary);
+            padding: 2px 8px;
+            border-radius: 9999px;
+        }
+
+        .nav-item.active .nav-count {
+            background: var(--accent);
+            color: white;
+        }
+
+        /* Main Content */
+        .main-content {
+            min-height: calc(100vh - 100px);
+        }
+
+        .category-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .category-title {
+            font-size: 24px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .category-badge {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .sort-options {
+            display: flex;
+            gap: 8px;
+        }
+
+        .sort-btn {
+            background: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            padding: 6px 12px;
+            border-radius: 9999px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .sort-btn:hover, .sort-btn.active {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border-color: var(--accent);
+        }
+
+        /* Tweet Cards */
+        .tweets-container {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .tweet-card {
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            padding: 16px;
+            border: 1px solid transparent;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+
+        .tweet-card:hover {
+            border-color: var(--border-color);
+            background: rgba(22, 24, 28, 0.8);
+        }
+
+        .tweet-header {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .tweet-avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: var(--bg-tertiary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+
+        .tweet-meta {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .tweet-author {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-weight: 700;
+        }
+
+        .tweet-author-name {
+            color: var(--text-primary);
+        }
+
+        .tweet-author-handle {
+            color: var(--text-secondary);
+            font-weight: 400;
+        }
+
+        .verified-badge {
+            color: var(--accent);
+            font-size: 14px;
+        }
+
+        .tweet-time {
+            color: var(--text-secondary);
+            font-size: 13px;
+        }
+
+        .tweet-text {
+            font-size: 15px;
+            line-height: 1.5;
+            margin-bottom: 12px;
+            color: var(--text-primary);
+        }
+
+        .tweet-text a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        .tweet-text a:hover {
+            text-decoration: underline;
+        }
+
+        .tweet-image {
+            width: 100%;
+            max-height: 300px;
+            object-fit: cover;
+            border-radius: 12px;
+            margin-bottom: 12px;
+            border: 1px solid var(--border-color);
+        }
+
+        .tweet-categories {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 12px;
+        }
+
+        .category-tag {
+            font-size: 11px;
+            font-weight: 600;
+            padding: 4px 10px;
+            border-radius: 9999px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .tweet-actions {
+            display: flex;
+            gap: 24px;
+            padding-top: 12px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .tweet-action {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--text-secondary);
+            font-size: 13px;
+            transition: color 0.2s;
+        }
+
+        .tweet-action:hover {
+            color: var(--accent);
+        }
+
+        .tweet-action svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        /* Right Sidebar */
+        .sidebar-right {
+            position: sticky;
+            top: 80px;
+            height: fit-content;
+        }
+
+        .trending-section {
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        .trending-item {
+            padding: 12px 0;
+            border-bottom: 1px solid var(--border-color);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .trending-item:last-child {
+            border-bottom: none;
+        }
+
+        .trending-item:hover {
+            background: var(--bg-tertiary);
+            margin: 0 -16px;
+            padding-left: 16px;
+            padding-right: 16px;
+        }
+
+        .trending-category {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .trending-topic {
+            font-size: 15px;
+            font-weight: 700;
+            margin: 2px 0;
+        }
+
+        .trending-count {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        /* Stats Section */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+
+        .stat-card {
+            background: var(--bg-tertiary);
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        /* Loading State */
+        .loading-skeleton {
+            background: linear-gradient(
+                90deg,
+                var(--bg-secondary) 25%,
+                var(--bg-tertiary) 50%,
+                var(--bg-secondary) 75%
+            );
+            background-size: 200% 100%;
+            animation: loading 1.5s infinite;
+            border-radius: 12px;
+            height: 200px;
+            margin-bottom: 12px;
+        }
+
+        @keyframes loading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-secondary);
+        }
+
+        .empty-state svg {
+            width: 64px;
+            height: 64px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        /* Toast Notification */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: var(--accent);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 12px;
+            font-weight: 500;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s;
+            z-index: 1000;
+        }
+
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header-content {
+                padding: 12px 16px;
+            }
+
+            .container {
+                padding: 12px;
+            }
+
+            .category-title {
+                font-size: 18px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <div class="logo">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <g><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"></path></g>
+                </svg>
+                Content Hub
+            </div>
+            <div class="header-info">
+                <span class="update-time">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <polyline points="12,6 12,12 16,14"/>
+                    </svg>
+                    <span id="lastUpdate">加载中...</span>
+                </span>
+                <button class="refresh-btn" id="refreshBtn" onclick="refreshData()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="23,4 23,10 17,10"/>
+                        <polyline points="1,20 1,14 7,14"/>
+                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                    </svg>
+                    刷新
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- Left Sidebar -->
+        <aside class="sidebar-left">
+            <div class="nav-section">
+                <div class="nav-title">分类浏览</div>
+                <div class="nav-item active" data-category="all" onclick="selectCategory('all')">
+                    <span class="nav-icon">🏠</span>
+                    <span>全部内容</span>
+                    <span class="nav-count" id="count-all">0</span>
+                </div>
+                <div class="nav-item" data-category="tech" onclick="selectCategory('tech')">
+                    <span class="nav-icon" style="background: rgba(29, 155, 240, 0.2); color: var(--tech);">💻</span>
+                    <span>科技</span>
+                    <span class="nav-count" id="count-tech">0</span>
+                </div>
+                <div class="nav-item" data-category="finance" onclick="selectCategory('finance')">
+                    <span class="nav-icon" style="background: rgba(0, 186, 124, 0.2); color: var(--finance);">💰</span>
+                    <span>财经</span>
+                    <span class="nav-count" id="count-finance">0</span>
+                </div>
+                <div class="nav-item" data-category="news" onclick="selectCategory('news')">
+                    <span class="nav-icon" style="background: rgba(244, 33, 46, 0.2); color: var(--news);">📰</span>
+                    <span>新闻</span>
+                    <span class="nav-count" id="count-news">0</span>
+                </div>
+                <div class="nav-item" data-category="entertainment" onclick="selectCategory('entertainment')">
+                    <span class="nav-icon" style="background: rgba(255, 107, 157, 0.2); color: var(--entertainment);">🎬</span>
+                    <span>娱乐</span>
+                    <span class="nav-count" id="count-entertainment">0</span>
+                </div>
+                <div class="nav-item" data-category="sports" onclick="selectCategory('sports')">
+                    <span class="nav-icon" style="background: rgba(255, 173, 31, 0.2); color: var(--sports);">⚽</span>
+                    <span>体育</span>
+                    <span class="nav-count" id="count-sports">0</span>
+                </div>
+                <div class="nav-item" data-category="lifestyle" onclick="selectCategory('lifestyle')">
+                    <span class="nav-icon" style="background: rgba(120, 86, 255, 0.2); color: var(--lifestyle);">🌟</span>
+                    <span>生活</span>
+                    <span class="nav-count" id="count-lifestyle">0</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="category-header">
+                <h1 class="category-title">
+                    <span class="category-badge" id="current-badge" style="background: var(--accent);"></span>
+                    <span id="current-title">全部内容</span>
+                </h1>
+                <div class="sort-options">
+                    <button class="sort-btn active" onclick="sortTweets('newest')">最新</button>
+                    <button class="sort-btn" onclick="sortTweets('popular')">热门</button>
+                </div>
+            </div>
+
+            <div class="tweets-container" id="tweetsContainer">
+                <div class="loading-skeleton"></div>
+                <div class="loading-skeleton"></div>
+                <div class="loading-skeleton"></div>
+            </div>
+        </main>
+
+        <!-- Right Sidebar -->
+        <aside class="sidebar-right">
+            <div class="trending-section">
+                <div class="nav-title">热门趋势</div>
+                <div id="trendingList">
+                    <div class="trending-item">
+                        <div class="trending-category">科技 · 趋势</div>
+                        <div class="trending-topic">人工智能</div>
+                        <div class="trending-count">12.5K 推文</div>
+                    </div>
+                    <div class="trending-item">
+                        <div class="trending-category">财经 · 趋势</div>
+                        <div class="trending-topic">比特币</div>
+                        <div class="trending-count">8.2K 推文</div>
+                    </div>
+                    <div class="trending-item">
+                        <div class="trending-category">新闻 · 趋势</div>
+                        <div class="trending-topic">全球会议</div>
+                        <div class="trending-count">5.1K 推文</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="trending-section">
+                <div class="nav-title">数据统计</div>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-number" id="stat-total">0</div>
+                        <div class="stat-label">总推文</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="stat-categories">6</div>
+                        <div class="stat-label">分类</div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        // API 配置
+        const API_BASE_URL = 'http://localhost:3001';
+
+        // 分类配置
+        const CATEGORIES = {
+            all: { name: '全部内容', color: '#1d9bf0' },
+            tech: { name: '科技', color: '#1d9bf0' },
+            finance: { name: '财经', color: '#00ba7c' },
+            news: { name: '新闻', color: '#f4212e' },
+            entertainment: { name: '娱乐', color: '#ff6b9d' },
+            sports: { name: '体育', color: '#ffad1f' },
+            lifestyle: { name: '生活', color: '#7856ff' },
+            other: { name: '其他', color: '#71767b' }
+        };
+
+        // 状态
+        let currentCategory = 'all';
+        let currentSort = 'newest';
+        let tweets = [];
+        let stats = {};
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            loadData();
+            // 每 30 秒自动刷新
+            setInterval(loadData, 30000);
+        });
+
+        // 加载数据
+        async function loadData() {
+            try {
+                // 获取推文
+                const tweetsRes = await fetch(`${API_BASE_URL}/api/tweets?limit=100`);
+                const tweetsData = await tweetsRes.json();
+
+                if (tweetsData.success) {
+                    tweets = tweetsData.data;
+                    updateLastUpdateTime(tweetsData.lastUpdate);
+                }
+
+                // 获取统计
+                const statsRes = await fetch(`${API_BASE_URL}/api/stats`);
+                const statsData = await statsRes.json();
+
+                if (statsData.success) {
+                    stats = statsData.stats;
+                    updateStats();
+                }
+
+                renderTweets();
+            } catch (error) {
+                console.error('加载数据失败:', error);
+                showToast('加载失败，请检查服务器是否运行');
+                renderEmptyState();
+            }
+        }
+
+        // 刷新数据
+        async function refreshData() {
+            const btn = document.getElementById('refreshBtn');
+            btn.disabled = true;
+            btn.classList.add('spinning');
+
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/refresh`, { method: 'POST' });
+                const data = await res.json();
+
+                if (data.success) {
+                    await loadData();
+                    showToast('数据已更新');
+                }
+            } catch (error) {
+                showToast('刷新失败');
+            } finally {
+                btn.disabled = false;
+                btn.classList.remove('spinning');
+            }
+        }
+
+        // 选择分类
+        function selectCategory(category) {
+            currentCategory = category;
+
+            // 更新导航
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            document.querySelector(`[data-category="${category}"]`).classList.add('active');
+
+            // 更新标题
+            const config = CATEGORIES[category];
+            document.getElementById('current-title').textContent = config.name;
+            document.getElementById('current-badge').style.background = config.color;
+
+            renderTweets();
+        }
+
+        // 排序
+        function sortTweets(sort) {
+            currentSort = sort;
+
+            document.querySelectorAll('.sort-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+
+            renderTweets();
+        }
+
+        // 渲染推文
+        function renderTweets() {
+            const container = document.getElementById('tweetsContainer');
+
+            // 筛选
+            let filtered = tweets;
+            if (currentCategory !== 'all') {
+                filtered = tweets.filter(t => t.categories.includes(currentCategory));
+            }
+
+            // 排序
+            filtered.sort((a, b) => {
+                if (currentSort === 'newest') {
+                    return new Date(b.createdAt) - new Date(a.createdAt);
+                } else {
+                    const scoreA = (a.metrics?.likes || 0) + (a.metrics?.retweets || 0) * 2;
+                    const scoreB = (b.metrics?.likes || 0) + (b.metrics?.retweets || 0) * 2;
+                    return scoreB - scoreA;
+                }
+            });
+
+            if (filtered.length === 0) {
+                renderEmptyState();
+                return;
+            }
+
+            container.innerHTML = filtered.map(tweet => renderTweetCard(tweet)).join('');
+        }
+
+        // 渲染单条推文
+        function renderTweetCard(tweet) {
+            const timeAgo = formatTimeAgo(tweet.createdAt);
+            const categoryTags = tweet.categories.map(cat => {
+                const config = CATEGORIES[cat] || CATEGORIES.other;
+                return `<span class="category-tag" style="background: ${config.color}20; color: ${config.color};">${config.name}</span>`;
+            }).join('');
+
+            const imageHtml = tweet.image ? `<img src="${tweet.image}" alt="" class="tweet-image" loading="lazy">` : '';
+
+            return `
+                <article class="tweet-card" onclick="openTweet('${tweet.url}')">
+                    <div class="tweet-header">
+                        <div class="tweet-avatar">${tweet.author?.[0] || '👤'}</div>
+                        <div class="tweet-meta">
+                            <div class="tweet-author">
+                                <span class="tweet-author-name">${tweet.author}</span>
+                                <span class="verified-badge">✓</span>
+                                <span class="tweet-author-handle">${tweet.handle || ''}</span>
+                            </div>
+                            <div class="tweet-time">${timeAgo}</div>
+                        </div>
+                    </div>
+                    <div class="tweet-text">${formatText(tweet.text)}</div>
+                    ${imageHtml}
+                    <div class="tweet-categories">${categoryTags}</div>
+                    <div class="tweet-actions">
+                        <div class="tweet-action">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path>
+                            </svg>
+                            <span>${formatNumber(tweet.metrics?.likes || 0)}</span>
+                        </div>
+                        <div class="tweet-action">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M17 2.1l4 4-4 4M3 12.2v-2a4 4 0 0 1 4-4h12.8M7 21.9l-4-4 4-4M21 11.8v2a4 4 0 0 1-4 4H4.2"></path>
+                            </svg>
+                            <span>${formatNumber(tweet.metrics?.retweets || 0)}</span>
+                        </div>
+                        <div class="tweet-action">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+                            </svg>
+                            <span>${formatNumber(tweet.metrics?.replies || 0)}</span>
+                        </div>
+                    </div>
+                </article>
+            `;
+        }
+
+        // 格式化文本（高亮链接和话题）
+        function formatText(text) {
+            return text
+                .replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" onclick="event.stopPropagation()">$1</a>')
+                .replace(/#(\w+)/g, '<a href="#" onclick="event.stopPropagation()">#$1</a>')
+                .replace(/@(\w+)/g, '<a href="#" onclick="event.stopPropagation()">@$1</a>');
+        }
+
+        // 格式化时间
+        function formatTimeAgo(dateString) {
+            const date = new Date(dateString);
+            const now = new Date();
+            const diff = Math.floor((now - date) / 1000);
+
+            if (diff < 60) return '刚刚';
+            if (diff < 3600) return `${Math.floor(diff / 60)}分钟前`;
+            if (diff < 86400) return `${Math.floor(diff / 3600)}小时前`;
+            if (diff < 604800) return `${Math.floor(diff / 86400)}天前`;
+
+            return date.toLocaleDateString('zh-CN');
+        }
+
+        // 格式化数字
+        function formatNumber(num) {
+            if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+            if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+            return num.toString();
+        }
+
+        // 更新统计
+        function updateStats() {
+            let total = 0;
+            Object.entries(stats).forEach(([cat, count]) => {
+                total += count;
+                const el = document.getElementById(`count-${cat}`);
+                if (el) el.textContent = count;
+            });
+            document.getElementById('count-all').textContent = total;
+            document.getElementById('stat-total').textContent = total;
+        }
+
+        // 更新时间
+        function updateLastUpdateTime(timestamp) {
+            if (!timestamp) return;
+            const el = document.getElementById('lastUpdate');
+            el.textContent = '更新于 ' + formatTimeAgo(timestamp);
+        }
+
+        // 打开推文
+        function openTweet(url) {
+            window.open(url, '_blank');
+        }
+
+        // 显示提示
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        // 空状态
+        function renderEmptyState() {
+            document.getElementById('tweetsContainer').innerHTML = `
+                <div class="empty-state">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <p>暂无内容</p>
+                    <p style="font-size: 13px; margin-top: 8px;">请确保后端服务器正在运行 (node server/server.js)</p>
+                </div>
+            `;
+        }
+    </script>
+</body>
+</html>
